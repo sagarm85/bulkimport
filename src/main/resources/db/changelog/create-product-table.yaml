@@ -1,0 +1,31 @@
+databaseChangeLog:
+  - changeSet:
+      id: PRODUCT_TABLE
+      author: postgress
+      changes:
+        - createTable:
+            tableName: product
+            columns:
+              - column:
+                  name: product_id
+                  type: bigint
+                  autoIncrement: false
+                  constraints:
+                    - primaryKey: true
+                    - nullable: false
+              - column:
+                  name: price
+                  type: numeric
+                  constraints:
+                    - nullable: false
+              - column:
+                  name: stock
+                  type: numeric
+                  constraints:
+                    - nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMPTZ
+                  defaultValueComputed: CURRENT_TIMESTAMP
+                  constraints:
+                    nullable: true

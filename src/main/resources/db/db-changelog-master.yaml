@@ -1,0 +1,6 @@
+
+databaseChangeLog:
+  - include:
+      file: classpath:db/changelog/create-product-table.yaml
+  - include:
+      file: classpath:db/changelog/create-product-import-history-table.yaml
