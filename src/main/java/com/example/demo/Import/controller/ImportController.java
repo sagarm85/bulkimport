@@ -1,13 +1,9 @@
 package com.example.demo.Import.controller;
 
 import com.example.demo.Import.service.CSVImport;
-import com.opencsv.CSVReader;
-import com.opencsv.exceptions.CsvException;
-import java.io.FileReader;
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -18,7 +14,8 @@ public class ImportController {
   CSVImport csvImport;
 
   @PostMapping("/import")
-  public void processCSV() {
+  public ResponseEntity<Void> processCSV() {
     csvImport.processFiles();
+    return new ResponseEntity<>(HttpStatus.ACCEPTED);
   }
 }

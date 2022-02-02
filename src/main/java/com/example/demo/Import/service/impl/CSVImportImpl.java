@@ -19,15 +19,12 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
@@ -55,40 +52,31 @@ public class CSVImportImpl implements CSVImport {
 
   @Autowired
   @Qualifier(ApiConstants.IMPORT_PROCESSOR_THREAD)
-  Executor  existingThreadPool;
-
+  Executor existingThreadPool;
 
   @Override
   public void processFiles() {
     try {
-      AtomicInteger batch = new AtomicInteger();
-      AtomicReference<Long> totalTimeInSeconds = new AtomicReference<>(0l);
       final List<File> files = this.getAllFilesFromResource(csvfolder);
       files.forEach(file -> {
         final CsvToBean<ProductDTO> csvToBean = getCsvToBeanObject(file);
         if (csvToBean == null) {
           return;
         }
-        final List<List<ProductDTO>> batchProductDTOs = ListUtils.partition(csvToBean.parse(), batchSize);
-        Integer totalBatchSize = batchProductDTOs.size();
-
+        final List<List<ProductDTO>> batchProductDTOs = ListUtils.partition(csvToBean.parse(),
+            batchSize);
         try {
           batchProductDTOs.stream()
               .map(productDTOS -> CompletableFuture.supplyAsync(
                   () -> importProducts.pushProductsData(productDTOS), existingThreadPool))
               .collect(collectingAndThen(toList(), l -> allOfOrException(l)))
-              .thenApply(list -> {
-                List<Long> result = new ArrayList<>(batchProductDTOs.size());
-                for (Long rs : list) {
-                  result.add(rs);
-                }
-                return result;
-              }).thenAccept(timerList -> {
-                timerList.stream().forEach(time1 -> System.out.println("Times: " + time1));
+              .thenAccept(timerList -> {
+                timerList.stream()
+                    .forEach(time1 -> log.info("Times in seconds: " + time1 / 1000));
               }).get();
-        } catch (InterruptedException e) {
+        } catch (final InterruptedException e) {
           e.printStackTrace();
-        } catch (ExecutionException e) {
+        } catch (final ExecutionException e) {
           e.printStackTrace();
         }
 
@@ -98,7 +86,7 @@ public class CSVImportImpl implements CSVImport {
 //              totaltime -> {
 ////                totalTimeInSeconds.getAndSet(totaltime/1000);
 //                System.out.println(
-//                    "Total time taken for batch:" + (batch.incrementAndGet()) + " is "
+//                    "Total time taken for task is: "
 //                        + totaltime / 1000);
 //              });
 //        });
@@ -106,8 +94,7 @@ public class CSVImportImpl implements CSVImport {
         csvToBean.getCapturedExceptions().stream().forEach(e -> {
           log.error(
               String.join(", ", "File Name:" + file.getName(),
-                  " Inconsistent Data: " + e.getLine()),
-              e);
+                  ", Inconsistent Data: " + String.join(",", e.getLine())));
         });
       });
     } catch (final URISyntaxException ex) {

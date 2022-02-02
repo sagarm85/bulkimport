@@ -30,6 +30,6 @@ public class ImportProducts {
   }
 
   private void saveAll(final List<Product> productData) {
-    productRepository.saveAllAndFlush(productData);
+    productRepository.saveAll(productData);
   }
 }
