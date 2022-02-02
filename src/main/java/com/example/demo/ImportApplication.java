@@ -12,19 +12,17 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 @EnableAsync
 public class ImportApplication {
 
+  public static void main(String[] args) {
+    SpringApplication.run(ImportApplication.class, args);
+  }
 
-
-	public static void main(String[] args) {
-		SpringApplication.run(ImportApplication.class, args);
-	}
-
-	@Bean(ApiConstants.IMPORT_PROCESSOR_THREAD)
-	public Executor threadPoolTaskExecutor() {
-		final ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-		executor.setCorePoolSize(ApiConstants.CORE_POOL_SIZE);
-		executor.setMaxPoolSize(ApiConstants.MAX_POOL_SIZE);
-		executor.setQueueCapacity(ApiConstants.QUEUE_CAPACITY);
-		return executor;
-	}
+  @Bean(ApiConstants.IMPORT_PROCESSOR_THREAD)
+  public Executor threadPoolTaskExecutor() {
+    final ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+    executor.setCorePoolSize(ApiConstants.CORE_POOL_SIZE);
+    executor.setMaxPoolSize(ApiConstants.CORE_POOL_SIZE);
+    executor.setQueueCapacity(ApiConstants.QUEUE_CAPACITY);
+    return executor;
+  }
 
 }

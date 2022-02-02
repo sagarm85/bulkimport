@@ -1,5 +1,8 @@
 package com.example.demo.Import.service.impl;
 
+import static java.util.stream.Collectors.collectingAndThen;
+import static java.util.stream.Collectors.toList;
+
 import com.example.demo.Import.dto.ProductDTO;
 import com.example.demo.Import.repository.ProductImportHistoryRepository;
 import com.example.demo.Import.service.CSVImport;
@@ -16,9 +19,12 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -49,7 +55,7 @@ public class CSVImportImpl implements CSVImport {
 
   @Autowired
   @Qualifier(ApiConstants.IMPORT_PROCESSOR_THREAD)
-  Executor existingThreadPool;
+  Executor  existingThreadPool;
 
 
   @Override
@@ -59,25 +65,44 @@ public class CSVImportImpl implements CSVImport {
       AtomicReference<Long> totalTimeInSeconds = new AtomicReference<>(0l);
       final List<File> files = this.getAllFilesFromResource(csvfolder);
       files.forEach(file -> {
-//        ProductImportHistory productImportHistory = new ProductImportHistory();
-//        productImportHistory.setFileName(file.getName());
-//        productImportHistory.setStartAt(Instant.ofEpochMilli(System.currentTimeMillis()).atZone(
-//            ZoneId.of("UTC")).toLocalDateTime());
         final CsvToBean<ProductDTO> csvToBean = getCsvToBeanObject(file);
         if (csvToBean == null) {
           return;
         }
         final List<List<ProductDTO>> batchProductDTOs = ListUtils.partition(csvToBean.parse(), batchSize);
-        batchProductDTOs.forEach(productDTOS -> {
-          CompletableFuture.supplyAsync(
-              () -> importProducts.pushProductsData(productDTOS), existingThreadPool).thenAccept(
-              totaltime -> {
-//                totalTimeInSeconds.getAndSet(totaltime/1000);
-                System.out.println(
-                    "Total time taken for batch:" + (batch.incrementAndGet()) + " is "
-                        + totaltime / 1000);
-              });
-        });
+        Integer totalBatchSize = batchProductDTOs.size();
+
+        try {
+          batchProductDTOs.stream()
+              .map(productDTOS -> CompletableFuture.supplyAsync(
+                  () -> importProducts.pushProductsData(productDTOS), existingThreadPool))
+              .collect(collectingAndThen(toList(), l -> allOfOrException(l)))
+              .thenApply(list -> {
+                List<Long> result = new ArrayList<>(batchProductDTOs.size());
+                for (Long rs : list) {
+                  result.add(rs);
+                }
+                return result;
+              }).thenAccept(timerList -> {
+                timerList.stream().forEach(time1 -> System.out.println("Times: " + time1));
+              }).get();
+        } catch (InterruptedException e) {
+          e.printStackTrace();
+        } catch (ExecutionException e) {
+          e.printStackTrace();
+        }
+
+//        batchProductDTOs.forEach(productDTOS -> {
+//          CompletableFuture.supplyAsync(
+//              () -> importProducts.pushProductsData(productDTOS), existingThreadPool).thenAccept(
+//              totaltime -> {
+////                totalTimeInSeconds.getAndSet(totaltime/1000);
+//                System.out.println(
+//                    "Total time taken for batch:" + (batch.incrementAndGet()) + " is "
+//                        + totaltime / 1000);
+//              });
+//        });
+
         csvToBean.getCapturedExceptions().stream().forEach(e -> {
           log.error(
               String.join(", ", "File Name:" + file.getName(),
@@ -91,6 +116,22 @@ public class CSVImportImpl implements CSVImport {
       log.error("Failed to process csv files: " + ex.getMessage());
     }
   }
+
+//  private <T, R> CompletableFuture<List<R>> inParallelBatching(
+//      List<T> source, Function<T, R> mapper, Executor executor, int batches) {
+//
+//    return BatchingStream.partitioned(source, batches)
+//        .map(batch -> supplyAsync(
+//            () -> batching(mapper).apply(batch), executor))
+//        .collect(collectingAndThen(toList(), l -> allOfOrException(l)))
+//        .thenApply(list -> {
+//          List<R> result = new ArrayList<>(source.size());
+//          for (List<R> rs : list) {
+//            result.addAll(rs);
+//          }
+//          return result;
+//        });
+//  }
 
   private CsvToBean<ProductDTO> getCsvToBeanObject(File file) {
     CsvToBeanBuilder<ProductDTO> beanBuilder = null;
@@ -126,6 +167,23 @@ public class CSVImportImpl implements CSVImport {
     return Files.walk(Paths.get(resource.toURI()))
         .filter(Files::isRegularFile)
         .map(x -> x.toFile())
-        .collect(Collectors.toList());
+        .collect(toList());
+  }
+
+  static <T> CompletableFuture<List<T>> allOfOrException(Collection<CompletableFuture<T>> futures) {
+    CompletableFuture<List<T>> result = futures.stream()
+        .collect(collectingAndThen(
+            toList(),
+            l -> CompletableFuture.allOf(l.toArray(new CompletableFuture[0]))
+                .thenApply(__ -> l.stream()
+                    .map(CompletableFuture::join)
+                    .collect(Collectors.toList()))));
+
+    for (CompletableFuture<?> f : futures) {
+      f.handle((__, ex) -> ex == null
+          || result.completeExceptionally(ex));
+    }
+
+    return result;
   }
 }

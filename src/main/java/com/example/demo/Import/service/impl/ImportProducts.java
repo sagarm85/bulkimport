@@ -9,8 +9,6 @@ import org.apache.commons.collections4.ListUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.annotation.Propagation;
-import org.springframework.transaction.annotation.Transactional;
 
 @Component
 public class ImportProducts {
@@ -27,13 +25,10 @@ public class ImportProducts {
         insertBatchSize);
     insertBatchProducts.forEach(products -> {
       this.saveAll(ProductMapper.INSTANCE.mapToProduct(products));
-//      products.clear();
     });
-//    insertBatchProducts.clear();
     return System.currentTimeMillis() - startTime;
   }
 
-  @Transactional(propagation = Propagation.REQUIRED, rollbackFor = Exception.class)
   private void saveAll(final List<Product> productData) {
     productRepository.saveAllAndFlush(productData);
   }
